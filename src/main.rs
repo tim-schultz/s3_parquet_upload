@@ -102,37 +102,37 @@ async fn process_directory(
     let mut successes = 0;
     let mut failures = 0;
 
-    // let results = stream::iter(files)
-    //     .map(|file| {
-    //         let client = s3_client.clone();
-    //         let bucket = bucket_name.to_string();
-    //         async move {
-    //             match upload_file(&client, &bucket, &file).await {
-    //                 Ok(()) => (file, true),
-    //                 Err(e) => {
-    //                     eprintln!("Error uploading {:?}: {}", file, e);
-    //                     (file, false)
-    //                 }
-    //             }
-    //         }
-    //     })
-    //     .buffer_unordered(concurrent_uploads)
-    //     .collect::<Vec<_>>()
-    //     .await;
+    let results = stream::iter(files)
+        .map(|file| {
+            let client = s3_client.clone();
+            let bucket = bucket_name.to_string();
+            async move {
+                match upload_file(&client, &bucket, &file).await {
+                    Ok(()) => (file, true),
+                    Err(e) => {
+                        eprintln!("Error uploading {:?}: {}", file, e);
+                        (file, false)
+                    }
+                }
+            }
+        })
+        .buffer_unordered(concurrent_uploads)
+        .collect::<Vec<_>>()
+        .await;
 
-    // // Count results
-    // for (_file, success) in results {
-    //     if success {
-    //         successes += 1;
-    //     } else {
-    //         failures += 1;
-    //     }
-    // }
+    // Count results
+    for (_file, success) in results {
+        if success {
+            successes += 1;
+        } else {
+            failures += 1;
+        }
+    }
 
-    // println!(
-    //     "Upload complete: {} successful, {} failed",
-    //     successes, failures
-    // );
+    println!(
+        "Upload complete: {} successful, {} failed",
+        successes, failures
+    );
 
     if failures > 0 {
         Err(anyhow::anyhow!("{} files failed to upload", failures))
@@ -145,10 +145,17 @@ async fn process_directory(
 async fn main() -> Result<()> {
     let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
     let s3_client = aws_sdk_s3::Client::new(&config);
+
+    println!("AWS Region: {:?}", config.region().unwrap());
+    println!(
+        "AWS credentials loaded: {}",
+        config.credentials_provider().is_some()
+    );
+
     let bucket_name = "arbitrum-erc20-transfer-events";
 
     // Create the bucket
-    create_bucket(&s3_client, bucket_name).await?;
+    // create_bucket(&s3_client, bucket_name).await?;
 
     // Get the directory path from command line arguments
     let dir_path = std::env::args()
